@@ -26,9 +26,21 @@ while True:
         break 
 
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRBG, data=rgb_frame)
-    timestamps_ms = int(time.monotonic()*1000) #For MP to know frame orders
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+    timestamp_ms = int(time.monotonic()*1000) #For MP to know frame orders
+    result = landmarker.detect_for_video(mp_image, timestamp_ms)
+    print("Hands detected:", len(result.hand_landmarks), flush=True)
+    
+    if result.hand_landmarks:
+        print("Hand label:", result.handedness[0][0].category_name)
 
+        height, width, _ = frame.shape
+
+        for hand in result.hand_landmarks:
+            for landmark in hand: 
+                x = int(landmark.x * width)
+                y = int(landmark.y * height)
+                cv2.circle(frame, (x,y), 4, (0,0,255), -1)
 
     cv2.imshow("ASL Camera", frame)
 
