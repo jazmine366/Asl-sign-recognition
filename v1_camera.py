@@ -32,15 +32,18 @@ while True:
     timestamp_ms = int(time.monotonic()*1000) #For MP to know frame orders
     result = landmarker.detect_for_video(mp_image, timestamp_ms)
     print("Hands detected:", len(result.hand_landmarks), flush=True)
+
+    left_features = [0.0] * 66
+    right_features = [0.0] * 66 
     
     #Cicles (landmark display) for both hand 
     if result.hand_landmarks:
-        print("Hand label:", result.handedness[0][0].category_name)
-
+        hand_label = result.handedness[0][0].category_name
         height, width, _ = frame.shape
 
         for hand in result.hand_landmarks:
-            for landmark in hand: #circle
+            #circle
+            for landmark in hand: 
                 x = int(landmark.x * width)#OpenCV needs pixel coordinates
                 y = int(landmark.y * height)#normilized -> pixel coord
                 cv2.circle(frame, (x,y), 4, (0,0,255), -1)
@@ -52,6 +55,34 @@ while True:
                 start_point = (int(start.x * width), int(start.y * height))
                 end_point = (int(end.x * width), int(end.y * height))
                 cv2.line(frame, start_point, end_point, (255,0,0), 2)
+        
+        #Extract features for each detected hand
+        for i, handLandmark in enumerate(result.hand_landmarks):
+            wrist = handLandmark[0]
+            features = []
+        
+            #Relative Coordinates
+            for landmark in handLandmark: 
+                features.extend([#extend add each ele individually
+                    landmark.x - wrist.x, #relative mark vs wrist
+                    landmark.y - wrist.y,
+                    landmark.z - wrist.z
+                ])
+            features.extend([wrist.x, wrist.y]) #Describe the path hand follows 
+            features.append(1.0)#hand presence 
+            #66 features = 63 relative landmark + 2 absolute wrist position + 1 presence
+            hand_label = result.handedness[i][0].category_name
+            print("Hand label:", hand_label)
+
+            if hand_label == "Left":
+                left_features = features
+            else:
+                right_features = features
+
+    frame_features = left_features + right_features
+    print("Frame features:", len(frame_features))
+    print("Left:", len(left_features), left_features[-1])
+    print("Right:", len(right_features), right_features[-1])
 
     current_time = time.perf_counter()
     fps = 1/ (current_time - previous_time)
