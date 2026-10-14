@@ -4,6 +4,9 @@ from mediapipe.tasks import python #Task API tool to configure models
 from mediapipe.tasks.python import vision #land handmarker
 import time 
 from mediapipe.tasks.python.vision import HandLandmarksConnections
+import numpy as np 
+from pathlib import Path #create folders/file path
+from datetime import datetime #gives recording unique filename 
 
 #configuration - pretrain model:settings telling a program how to behave 
 base_options = python.BaseOptions(
@@ -21,6 +24,22 @@ landmarker = vision.HandLandmarker.create_from_options(options)
 cap = cv2.VideoCapture(0)
 
 previous_time = time.perf_counter()
+sequence = [] 
+
+key_to_label = {
+    ord('a') : "A",
+    ord('j') : "J", 
+    ord('n') : "NAME"
+}
+
+data_dir = Path("v1_data")
+data_dir.mkdir(exist_ok = True)
+
+recording_label = None
+countdown_start = None
+is_recording = False
+recording_start = None
+
 while True:
     success, frame = cap.read()
 
@@ -31,14 +50,12 @@ while True:
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
     timestamp_ms = int(time.monotonic()*1000) #For MP to know frame orders
     result = landmarker.detect_for_video(mp_image, timestamp_ms)
-    print("Hands detected:", len(result.hand_landmarks), flush=True)
 
     left_features = [0.0] * 66
     right_features = [0.0] * 66 
     
     #Cicles (landmark display) for both hand 
     if result.hand_landmarks:
-        hand_label = result.handedness[0][0].category_name
         height, width, _ = frame.shape
 
         for hand in result.hand_landmarks:
@@ -72,7 +89,6 @@ while True:
             features.append(1.0)#hand presence 
             #66 features = 63 relative landmark + 2 absolute wrist position + 1 presence
             hand_label = result.handedness[i][0].category_name
-            print("Hand label:", hand_label)
 
             if hand_label == "Left":
                 left_features = features
@@ -80,21 +96,69 @@ while True:
                 right_features = features
 
     frame_features = left_features + right_features
-    print("Frame features:", len(frame_features))
-    print("Left:", len(left_features), left_features[-1])
-    print("Right:", len(right_features), right_features[-1])
+    
+    if is_recording:
+        sequence.append(frame_features) 
+        if len(sequence) == 30:
+            is_recording = False
 
+            recording_duration = time.perf_counter() - recording_start
+            print(f"Recording duration: {recording_duration:.2f} seconds")
+
+            sign_dir = data_dir / recording_label #v1_data/J
+            sign_dir.mkdir(exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            file_path = sign_dir / f"{timestamp}.npy"
+
+            np.save(file_path, np.array(sequence, dtype=np.float32))
+            print("Saved:", file_path)
+            print("Recording complete:", recording_label)
+            print("Sequence shape:", len(sequence), len(sequence[0]))
+            recording_label = None
+        
     current_time = time.perf_counter()
     fps = 1/ (current_time - previous_time)
     previous_time = current_time
     cv2.putText(frame, f"FPS: {fps:.1f}", (20, 40), 
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+    
+    if countdown_start is not None:
+        elapsed = time.perf_counter() - countdown_start
+        remaining = max(0, 3 - elapsed)
+        cv2.putText(
+            frame, f"Get ready: {remaining:.1f}s",
+            (20,90),
+            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2
+        )
+        if elapsed >= 3:
+            sequence.clear()
+            countdown_start = None
+            is_recording = True
+            recording_start = time.perf_counter()
+            print("Recording started for:", recording_label)
+        
+    if is_recording:
+        cv2.putText(
+            frame, 
+            f"RECORDING: {recording_label} ({len(sequence)}/30)", 
+            (20,130), 
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8, #font size
+            (0,0,0), 
+            2 #text thickness
+        )
 
     cv2.imshow("ASL Camera", frame) #imageshow(window title, frame cap from camera)
+    key = cv2.waitKey(1) & 0xFF
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if key == ord('q'):
         break 
+    
+    if key in key_to_label and recording_label is None:
+        recording_label = key_to_label[key]
+        countdown_start = time.perf_counter()
 
 cap.release()
 landmarker.close()
 cv2.destroyAllWindows()
+
