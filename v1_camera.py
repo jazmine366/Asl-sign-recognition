@@ -39,6 +39,7 @@ recording_label = None
 countdown_start = None
 is_recording = False
 recording_start = None
+saved_message = None 
 
 while True:
     success, frame = cap.read()
@@ -112,7 +113,7 @@ while True:
 
             np.save(file_path, np.array(sequence, dtype=np.float32))
             print("Saved:", file_path)
-            print("Recording complete:", recording_label)
+            saved_message = f"Saved {recording_label}! Press A/J/N to record again."
             print("Sequence shape:", len(sequence), len(sequence[0]))
             recording_label = None
         
@@ -128,7 +129,7 @@ while True:
         cv2.putText(
             frame, f"Get ready: {remaining:.1f}s",
             (20,90),
-            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2
+            cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 2
         )
         if elapsed >= 3:
             sequence.clear()
@@ -147,6 +148,17 @@ while True:
             (0,0,0), 
             2 #text thickness
         )
+    
+    if saved_message is not None:
+        cv2.putText(
+            frame, 
+            saved_message,
+            (20, 180),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.65,
+            (0,255,0),
+            2
+        )
 
     cv2.imshow("ASL Camera", frame) #imageshow(window title, frame cap from camera)
     key = cv2.waitKey(1) & 0xFF
@@ -155,6 +167,7 @@ while True:
         break 
     
     if key in key_to_label and recording_label is None:
+        saved_message = None
         recording_label = key_to_label[key]
         countdown_start = time.perf_counter()
 
