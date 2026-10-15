@@ -21,7 +21,7 @@ An American Sign Language (ASL) recognition project using MediaPipe hand landmar
 
 MediaPipe detects 21 landmarks per hand, each containing x, y, and z coordinates.
 
-![MediaPipe hand landmarks](./assets/hand-landmarks.png)
+<img src="./assets/hand-landmarks.png" alt="MediaPipe hand landmarks" width="350">
 
 The project combines wrist relative landmark positions to represent handshape with absolute wrist coordinates to preserve spatial movement information.
 
